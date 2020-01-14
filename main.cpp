@@ -30,7 +30,7 @@ struct Node {
   int64_t time;
   int64_t midi_value;
   int64_t velocity;
-  const Node *matched;
+  const Node *matched = nullptr;
 
   bool operator<(const Node &rhs) {
     return this->time < rhs.time;
@@ -112,7 +112,7 @@ void draw_text(SDL_Renderer *renderer, TTF_Font *font, const std::string &text, 
 class SDLConsole {
  public:
   SDLConsole(SDL_Renderer *renderer, int x, int y, size_t max_lines = 12) :renderer(renderer), x(x), y(y), color(), max_lines(max_lines) {
-    font = TTF_OpenFont("/usr/share/fonts/TTF/DejaVuSans.ttf", 48); //this opens a font style and sets a size
+    font = TTF_OpenFont("/usr/share/fonts/TTF/DejaVuSansMono.ttf", 48); //this opens a font style and sets a size
     if (font == nullptr) {
       std::cerr << "TTF_OpenFont: " << TTF_GetError() << std::endl;
       exit(1);
@@ -160,17 +160,30 @@ class SDLConsole {
   int max_lines;
 };
 
+#include "MidiFile.h"
 int main() {
 
-  // max time diff, if delta_t >= time_epsilon, not matched.
+  smf::MidiFile midifile;
+  midifile.read("test.midi");
+  midifile.doTimeAnalysis();
+  midifile.linkNotePairs();
+
   std::list<Node> ground_truth;
-  ground_truth.push_back({0, 1000, 'a', 0});
-  ground_truth.push_back({0, 1500, 'a', 0});
-  ground_truth.push_back({0, 2000, 'a', 0});
-  ground_truth.push_back({0, 2500, 'a', 0});
-  ground_truth.push_back({0, 3000, 'a', 0});
-  ground_truth.push_back({0, 4000, 'a', 0});
-  ground_truth.push_back({0, 4000, 'b', 0});
+
+  for (int track = 0; track < midifile.getTrackCount(); track++) {
+    for (int event = 0; event < midifile[track].size(); event++) {
+      if (midifile[track][event].isNoteOn()) {
+        int ms = midifile[track][event].seconds * 1000;
+        for (int i=0; i<midifile[track][event].size(); i++) {
+          int velocity = midifile[track][event].getVelocity();
+          int midi_value = midifile[track][event][i];
+          Node node{0, ms, midi_value, velocity};
+          ground_truth.push_back(node);
+        }
+      }
+    }
+  }
+  ground_truth.sort();
 
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     fprintf(stderr, "could not initialize sdl2: %s\n", SDL_GetError());
@@ -197,7 +210,7 @@ int main() {
     std::cerr << "TTF_Init: " << TTF_GetError() << std::endl;
     exit(1);
   }
-  TTF_Font* font = TTF_OpenFont("/usr/share/fonts/TTF/DejaVuSans.ttf", 48); //this opens a font style and sets a size
+  TTF_Font* font = TTF_OpenFont("/usr/share/fonts/TTF/DejaVuSansMono.ttf", 48); //this opens a font style and sets a size
   if (font == nullptr) {
     std::cerr << "TTF_OpenFont: " << TTF_GetError() << std::endl;
     exit(1);
@@ -214,16 +227,21 @@ int main() {
 
     SDL_PollEvent(&event);
     std::list<Node> input_nodes;
-    if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
-      break;
-    }
-    if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_a) {
-      input_nodes.push_back({1, current_time, 'a', 1});
-      {
-        std::stringstream ss;
-        ss << std::chrono::high_resolution_clock::now().time_since_epoch().count();
-        ss << " key down";
-        console.print(ss.str());
+    if (event.type == SDL_KEYDOWN) {
+      if (event.key.keysym.sym == SDLK_ESCAPE) {
+        break;
+      }
+      if (event.key.keysym.scancode >= SDL_SCANCODE_A && event.key.keysym.scancode <= SDL_SCANCODE_Z) {
+        int ch = 'a' + (event.key.keysym.scancode - SDL_SCANCODE_A);
+
+        input_nodes.push_back({1, current_time, ch, 1});
+
+//        {
+//          std::stringstream ss;
+//          ss << ": " << std::chrono::duration_cast<std::chrono::duration<int64_t, std::milli>>(now - t0).count();
+//          ss << " key down " << (char)ch;
+//          console.print(ss.str());
+//        }
       }
     }
 

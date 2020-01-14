@@ -5,5 +5,8 @@ project(note-matcher)
 
 find_package(SDL2 REQUIRED)
 
+include_directories(midifile/include)
+link_directories(midifile/lib)
+
 add_executable(note_matcher main.cpp)
-target_link_libraries(note_matcher PRIVATE SDL2 SDL2_ttf)
+target_link_libraries(note_matcher PRIVATE SDL2 SDL2_ttf midifile)
