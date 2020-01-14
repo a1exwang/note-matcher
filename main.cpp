@@ -232,16 +232,8 @@ int main() {
         break;
       }
       if (event.key.keysym.scancode >= SDL_SCANCODE_A && event.key.keysym.scancode <= SDL_SCANCODE_Z) {
-        int ch = 'a' + (event.key.keysym.scancode - SDL_SCANCODE_A);
-
+        int ch = 'A' + (event.key.keysym.scancode - SDL_SCANCODE_A);
         input_nodes.push_back({1, current_time, ch, 1});
-
-//        {
-//          std::stringstream ss;
-//          ss << ": " << std::chrono::duration_cast<std::chrono::duration<int64_t, std::milli>>(now - t0).count();
-//          ss << " key down " << (char)ch;
-//          console.print(ss.str());
-//        }
       }
     }
 
@@ -271,6 +263,36 @@ int main() {
         pending_nodes.push_back(ground_truth.front());
         ground_truth.pop_front();
       }
+    }
+
+    // FIXME(aocheng): The following dirty code is just for demonstration. Will remove later.
+    // draw a 10s window
+    int render_t = 10 * 1000;
+    int mid_x = window_width/2;
+    auto do_it = [current_time, render_t, renderer, mid_x](const Node &node) {
+      if (abs(node.time - current_time) < render_t) {
+        if (node.type == NODE_TYPE_GROUND_TRUTH) {
+          // red for ground truth
+          SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+        } else {
+          // green for user input
+          SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+        }
+        int x = double(node.time - current_time)/render_t * window_width*0.9/2 + window_width/2;
+        int y = (256-node.midi_value) * 3;
+        SDL_RenderDrawLine(renderer, x, y, x+20, y);
+      }
+    };
+    // blue for UI
+    SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
+    SDL_RenderDrawLine(renderer, window_width/2, 0, window_width/2, 256*3);
+    // FIXME end
+
+    for (auto &node : ground_truth) {
+      do_it(node);
+    }
+    for (auto &node :pending_nodes) {
+      do_it(node);
     }
 
     match_nodes(pending_nodes, current_time, [&console](bool matched, const Node *node) {
